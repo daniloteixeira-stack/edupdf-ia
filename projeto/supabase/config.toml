@@ -1,0 +1,35 @@
+# Trecho relevante para `supabase start` / `supabase functions deploy`.
+# O project_id é preenchido por `supabase link --project-ref <ref>`.
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://tauri.localhost"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+otp_length = 6
+otp_expiry = 600
+
+[auth.email.template.magic_link]
+subject = "Seu código de acesso EduPDF IA"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.confirmation]
+subject = "Seu código de cadastro EduPDF IA"
+content_path = "./supabase/templates/otp.html"
+
+[auth.email.template.recovery]
+subject = "Código para redefinir sua senha"
+content_path = "./supabase/templates/recovery.html"
+
+# As três funções validam o JWT por conta própria (requireCaller).
+[functions.generate-questions]
+verify_jwt = true
+
+[functions.grade-open-answer]
+verify_jwt = true
+
+[functions.admin-users]
+verify_jwt = true
