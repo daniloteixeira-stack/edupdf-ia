@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase, friendlyError } from "../lib/supabase";
 import { generateQuestions } from "../lib/api";
-import type { Module, PdfFile, Profile, Question, QuestionKey, QuestionType } from "../lib/types";
+import type { LessonSlide, Module, PdfFile, Profile, Question, QuestionKey, QuestionType } from "../lib/types";
 import { QuestionEditor } from "./QuestionEditor";
 import { ModuleResults } from "./ModuleResults";
+import { LessonSlidesTab } from "./LessonSlides";
 import { Modal } from "../components/Modal";
 
-type Tab = "questions" | "settings" | "results";
+type Tab = "questions" | "lesson" | "settings" | "results";
 
 export function ModuleEditor() {
   const { id } = useParams<{ id: string }>();
@@ -17,15 +18,17 @@ export function ModuleEditor() {
   const [pdfs, setPdfs] = useState<Pick<PdfFile, "id" | "title" | "page_count">[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [keys, setKeys] = useState<Map<string, QuestionKey>>(new Map());
+  const [slides, setSlides] = useState<LessonSlide[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [m, p, q] = await Promise.all([
+    const [m, p, q, s] = await Promise.all([
       supabase.from("edu_modules").select("*").eq("id", id).single(),
       supabase.from("edu_pdf_files").select("id, title, page_count").eq("status", "ready"),
       supabase.from("edu_questions").select("*, question_keys:edu_question_keys(*)").eq("module_id", id).order("position"),
+      supabase.from("edu_lesson_slides").select("*").eq("module_id", id).order("position"),
     ]);
     if (m.error) return setError(friendlyError(m.error));
     setMod(m.data as Module);
@@ -33,11 +36,15 @@ export function ModuleEditor() {
     const qs = (q.data ?? []) as Array<Question & { question_keys: QuestionKey | QuestionKey[] | null }>;
     setQuestions(qs);
     setKeys(new Map(qs.map((x) => [x.id, (Array.isArray(x.question_keys) ? x.question_keys[0] : x.question_keys) as QuestionKey])));
+    setSlides((s.data ?? []) as LessonSlide[]);
   }, [id]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Próxima posição livre na sequência do módulo (slides e questões dividem a numeração).
+  const nextPosition = Math.max(-1, ...questions.map((q) => q.position), ...slides.map((sl) => sl.position)) + 1;
 
   if (error && !mod) return <div className="alert alert-error">{error}</div>;
   if (!mod) return <div className="loading">Carregando…</div>;
@@ -69,6 +76,7 @@ export function ModuleEditor() {
         {(
           [
             ["questions", `Questões (${questions.length})`],
+            ["lesson", `Aula (${slides.length} slides)`],
             ["settings", "Configurações"],
             ["results", "Resultados"],
           ] as Array<[Tab, string]>
@@ -88,11 +96,13 @@ export function ModuleEditor() {
           pdf={pdfs.find((p) => p.id === mod.pdf_file_id) ?? null}
           questions={questions}
           keys={keys}
+          nextPosition={nextPosition}
           reload={load}
           setError={setError}
           setInfo={setInfo}
         />
       )}
+      {tab === "lesson" && <LessonSlidesTab moduleId={mod.id} slides={slides} nextPosition={nextPosition} reload={load} setError={setError} />}
       {tab === "settings" && (
         <SettingsTab
           mod={mod}
@@ -117,17 +127,20 @@ function QuestionsTab(props: {
   pdf: Pick<PdfFile, "id" | "title" | "page_count"> | null;
   questions: Question[];
   keys: Map<string, QuestionKey>;
+  nextPosition: number;
   reload: () => Promise<void>;
   setError: (e: string | null) => void;
   setInfo: (e: string | null) => void;
 }) {
-  const { mod, pdf, questions, keys, reload, setError, setInfo } = props;
+  const { mod, pdf, questions, keys, nextPosition, reload, setError, setInfo } = props;
   const [mc, setMc] = useState(5);
   const [open, setOpen] = useState(2);
   const [difficulty, setDifficulty] = useState<"facil" | "medio" | "dificil">("medio");
   const [pageFrom, setPageFrom] = useState("");
   const [pageTo, setPageTo] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [withLesson, setWithLesson] = useState(true);
+  const [slidesPerBlock, setSlidesPerBlock] = useState(2);
   const [generating, setGenerating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState<QuestionType | null>(null);
@@ -146,8 +159,13 @@ function QuestionsTab(props: {
         page_from: pageFrom ? Number(pageFrom) : null,
         page_to: pageTo ? Number(pageTo) : null,
         instructions,
+        slides_per_block: withLesson ? slidesPerBlock : 0,
       });
-      setInfo(`${res.created} questões geradas. Revise antes de publicar.`);
+      setInfo(
+        res.slides
+          ? `${res.slides} slides e ${res.created} questões gerados. Revise na aba Aula e aqui antes de publicar.`
+          : `${res.created} questões geradas. Revise antes de publicar.`,
+      );
       await reload();
     } catch (err) {
       setError(friendlyError(err));
@@ -174,12 +192,11 @@ function QuestionsTab(props: {
     void reload();
   };
 
-  const nextPosition = questions.length ? Math.max(...questions.map((q) => q.position)) + 1 : 0;
 
   return (
     <>
       <section className="card gen-panel">
-        <h3>Gerar questões com IA</h3>
+        <h3>{withLesson ? "Gerar aula e questões com IA" : "Gerar questões com IA"}</h3>
         {!pdf ? (
           <p className="muted">Escolha um PDF de referência em Configurações para habilitar a geração.</p>
         ) : (
@@ -213,6 +230,18 @@ function QuestionsTab(props: {
                 <input type="number" min={1} value={pageTo} placeholder="fim" onChange={(e) => setPageTo(e.target.value)} />
               </label>
             </div>
+            <div className="row gap wrap">
+              <label className="check">
+                <input type="checkbox" checked={withLesson} onChange={(e) => setWithLesson(e.target.checked)} />
+                Criar aula em slides: cada parte do PDF vira slides seguidos das questões sobre ela
+              </label>
+              {withLesson && (
+                <label className="field inline">
+                  <span>Slides por parte</span>
+                  <input type="number" min={1} max={4} value={slidesPerBlock} onChange={(e) => setSlidesPerBlock(Math.max(1, Math.min(4, Number(e.target.value))))} />
+                </label>
+              )}
+            </div>
             <label className="field">
               <span>Orientações para a IA (opcional)</span>
               <input value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Ex.: foque no capítulo 2, use situações do dia a dia" />
@@ -223,7 +252,7 @@ function QuestionsTab(props: {
                   <span className="spinner" /> Gerando… (pode levar 1–3 min)
                 </>
               ) : (
-                `Gerar ${mc + open} questões`
+                withLesson ? `Gerar aula + ${mc + open} questões` : `Gerar ${mc + open} questões`
               )}
             </button>
           </>

@@ -35,7 +35,8 @@ export const generateQuestions = (params: {
   page_from?: number | null;
   page_to?: number | null;
   instructions?: string;
-}) => callFunction<{ created: number }>("edu-generate-questions", params);
+  slides_per_block?: number;
+}) => callFunction<{ created: number; slides?: number }>("edu-generate-questions", params);
 
 export type AdminAction =
   | { action: "pause" | "block"; user_id: string; reason?: string }

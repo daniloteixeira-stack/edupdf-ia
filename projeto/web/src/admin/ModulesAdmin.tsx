@@ -28,6 +28,25 @@ export function ModulesAdmin() {
     })();
   }, []);
 
+  // Ordem da trilha do aluno: publicados primeiro, na ordem definida; rascunhos depois.
+  const trail = (rows ?? [])
+    .filter((m) => m.is_published)
+    .sort((a, b) => (a.trail_position ?? Infinity) - (b.trail_position ?? Infinity) || a.created_at.localeCompare(b.created_at));
+  const drafts = (rows ?? []).filter((m) => !m.is_published);
+
+  const move = async (index: number, delta: number) => {
+    const order = [...trail];
+    const [item] = order.splice(index, 1);
+    order.splice(index + delta, 0, item);
+    const positions = new Map(order.map((m, i) => [m.id, i + 1]));
+    setRows((prev) => (prev ?? []).map((m) => (positions.has(m.id) ? { ...m, trail_position: positions.get(m.id)! } : m)));
+    const results = await Promise.all(
+      order.map((m, i) => supabase.from("edu_modules").update({ trail_position: i + 1 }).eq("id", m.id)),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) setError(friendlyError(failed.error));
+  };
+
   const create = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -44,7 +63,7 @@ export function ModulesAdmin() {
     <div className="page">
       <header className="page-head">
         <h1>Módulos</h1>
-        <p className="muted">Crie um módulo, ligue a um PDF e gere as questões com IA.</p>
+        <p className="muted">Crie um módulo, ligue a um PDF e gere as questões com IA. Os publicados formam a trilha do aluno, na ordem abaixo: cada um abre quando o anterior é aprovado.</p>
       </header>
 
       <form className="card row gap wrap" onSubmit={create}>
@@ -70,6 +89,7 @@ export function ModulesAdmin() {
           <table className="table">
             <thead>
               <tr>
+                <th>Trilha</th>
                 <th>Módulo</th>
                 <th>PDF</th>
                 <th>Questões</th>
@@ -78,8 +98,23 @@ export function ModulesAdmin() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {[...trail, ...drafts].map((m) => (
                 <tr key={m.id} onClick={() => navigate(`/admin/modulos/${m.id}`)}>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {m.is_published ? (
+                      <span className="order-btns">
+                        <strong>{trail.indexOf(m) + 1}</strong>
+                        <button className="btn btn-ghost btn-sm" disabled={trail.indexOf(m) === 0} onClick={() => move(trail.indexOf(m), -1)} aria-label="Subir na trilha">
+                          ↑
+                        </button>
+                        <button className="btn btn-ghost btn-sm" disabled={trail.indexOf(m) === trail.length - 1} onClick={() => move(trail.indexOf(m), 1)} aria-label="Descer na trilha">
+                          ↓
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td>
                     <Link to={`/admin/modulos/${m.id}`}>
                       <strong>{m.title}</strong>
@@ -95,7 +130,7 @@ export function ModulesAdmin() {
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan={5} className="empty">
+                  <td colSpan={6} className="empty">
                     Nenhum módulo ainda.
                   </td>
                 </tr>

@@ -93,7 +93,7 @@ function Shell() {
               <NavLink to="/admin/modulos">Módulos</NavLink>
             </>
           )}
-          <NavLink to="/aluno">{isAdmin ? "Visão do aluno" : "Meus módulos"}</NavLink>
+          <NavLink to="/aluno">{isAdmin ? "Visão do aluno" : "Minha trilha"}</NavLink>
         </nav>
         <div className="user-menu">
           <span className="muted small hide-sm">{profile?.full_name || profile?.email}</span>

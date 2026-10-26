@@ -1,10 +1,12 @@
 // POST /functions/v1/generate-questions
-// Corpo: { module_id, multiple_choice, open, difficulty?, page_from?, page_to?, instructions? }
+// Corpo: { module_id, multiple_choice, open, difficulty?, page_from?, page_to?, instructions?, slides_per_block? }
 // Só professor/admin. Gera questões com IA a partir do PDF do módulo e grava
-// questions + question_keys (gabarito separado, invisível ao aluno).
+// questions + question_keys (gabarito separado, invisível ao aluno). Com
+// slides_per_block > 0, cada trecho do PDF vira slides de aula seguidos das
+// questões sobre eles (edu_lesson_slides, mesma numeração de position).
 import { HttpError, json, serve } from "../_shared/cors.ts";
 import { adminClient, requireAdmin } from "../_shared/auth.ts";
-import { generateQuestions, MAX_SOURCE_CHARS, slicePages } from "../_shared/ai.ts";
+import { generateLesson, MAX_SOURCE_CHARS, slicePages } from "../_shared/ai.ts";
 
 interface Body {
   module_id?: string;
@@ -14,6 +16,7 @@ interface Body {
   page_from?: number | null;
   page_to?: number | null;
   instructions?: string;
+  slides_per_block?: number;
 }
 
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => {
@@ -56,24 +59,43 @@ serve(async (req) => {
     );
   }
 
-  const generated = await generateQuestions({
+  const blocks = await generateLesson({
     sourceText: source,
     moduleTitle: mod.title,
     multipleChoice: mc,
     open,
     difficulty,
     instructions: body.instructions?.slice(0, 2000),
+    slidesPerBlock: clampInt(body.slides_per_block, 0, 4, 0),
   });
-  if (!generated.length) throw new HttpError(502, "AI_EMPTY", "A IA não gerou questões válidas. Tente de novo.");
+  if (!blocks.some((b) => b.questions.length)) {
+    throw new HttpError(502, "AI_EMPTY", "A IA não gerou questões válidas. Tente de novo.");
+  }
 
-  const { data: last } = await admin
-    .from("edu_questions")
-    .select("position")
-    .eq("module_id", mod.id)
-    .order("position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  let position = (last?.position ?? -1) + 1;
+  // Continua a numeração depois do último slide ou questão do módulo.
+  const [{ data: lastQ }, { data: lastS }] = await Promise.all([
+    admin.from("edu_questions").select("position").eq("module_id", mod.id).order("position", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("edu_lesson_slides").select("position").eq("module_id", mod.id).order("position", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  let position = Math.max(lastQ?.position ?? -1, lastS?.position ?? -1) + 1;
+
+  // Ordem final: slides do bloco 1, questões do bloco 1, slides do bloco 2, ...
+  const slideRows: Record<string, unknown>[] = [];
+  const generated: Array<(typeof blocks)[number]["questions"][number] & { position: number }> = [];
+  for (const b of blocks) {
+    for (const sl of b.slides) {
+      slideRows.push({
+        module_id: mod.id,
+        position: position++,
+        title: sl.title.trim().slice(0, 200),
+        bullets: sl.bullets.map((t) => t.trim()).filter(Boolean).slice(0, 8),
+        explanation: sl.explanation?.trim() || null,
+        highlight: sl.highlight?.trim() || null,
+        source_page: sl.source_page,
+      });
+    }
+    for (const q of b.questions) generated.push({ ...q, position: position++ });
+  }
 
   const rows = generated.map((q) => {
     const options = q.type === "multiple_choice"
@@ -82,7 +104,7 @@ serve(async (req) => {
     return {
       question: {
         module_id: mod.id,
-        position: position++,
+        position: q.position,
         type: q.type,
         prompt: q.prompt.trim(),
         options,
@@ -112,5 +134,12 @@ serve(async (req) => {
     throw new Error(`insert question_keys: ${keyErr.message}`);
   }
 
-  return json(req, { created: inserted.length });
+  let slidesCreated = 0;
+  if (slideRows.length) {
+    const { error: slideErr } = await admin.from("edu_lesson_slides").insert(slideRows);
+    if (slideErr) console.error("insert lesson_slides", slideErr.message);
+    else slidesCreated = slideRows.length;
+  }
+
+  return json(req, { created: inserted.length, slides: slidesCreated });
 });

@@ -311,3 +311,49 @@ kbd { font-family: inherit; }
 .menu-list button:hover { background: var(--surface-2); }
 .menu-list button.danger { color: var(--bad); }
 .gen-panel > .btn { justify-self: start; }
+
+/* trilha, XP e ofensiva */
+.progress > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width .4s ease; }
+.stats-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: .8rem 1rem; margin-bottom: 1rem; }
+.stat { display: flex; align-items: center; gap: .55rem; }
+.stat > div { display: flex; flex-direction: column; line-height: 1.2; }
+.stat-icon { font-size: 1.6rem; filter: grayscale(1); opacity: .5; }
+.stat-streak .stat-icon, .stat-xp .stat-icon { filter: none; opacity: 1; }
+.stat-streak strong { color: var(--mid); }
+.week { display: flex; gap: .3rem; margin-left: auto; }
+.week-day { width: 1.9rem; height: 1.9rem; border-radius: 999px; display: grid; place-items: center; font-size: .75rem; font-weight: 600; background: var(--surface-2); color: var(--muted); }
+.week-day.on { background: var(--mid); color: #fff; }
+.trail { list-style: none; margin: 1.5rem auto 0; padding: 0; max-width: 640px; display: flex; flex-direction: column; gap: 1.4rem; position: relative; }
+.trail::before { content: ""; position: absolute; left: 2.1rem; top: 1.5rem; bottom: 1.5rem; width: 4px; margin-left: -2px; background: var(--border); border-radius: 2px; }
+.trail-step { display: flex; position: relative; }
+.trail-node { display: flex; align-items: center; gap: .9rem; color: inherit; text-decoration: none !important; min-width: 0; }
+.trail-node[aria-disabled="true"] { cursor: not-allowed; opacity: .6; }
+.trail-info { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; min-width: 0; }
+.trail-info .progress { width: 10rem; }
+.trail-info .btn { margin-top: .2rem; }
+.trail-circle { flex: none; width: 4.2rem; height: 4.2rem; border-radius: 999px; display: grid; place-items: center; font-size: 1.4rem; font-weight: 700; position: relative; z-index: 1; border: 4px solid var(--bg); box-shadow: 0 4px 0 rgb(0 0 0 / 18%); transition: transform .15s; }
+.trail-circle.done { background: var(--good); color: #fff; }
+.trail-circle.open { background: var(--primary); color: var(--primary-ink); }
+.trail-circle.locked { background: var(--surface-2); color: var(--muted); font-size: 1.2rem; box-shadow: none; }
+.trail-circle.current { animation: pulse 1.8s ease-in-out infinite; }
+a.trail-node:hover .trail-circle { transform: translateY(-2px) scale(1.04); }
+.trail-end { font-weight: 600; color: var(--good); position: relative; z-index: 1; padding: .5rem 0 .5rem 5.1rem; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 4px 0 rgb(0 0 0 / 18%), 0 0 0 0 var(--primary-soft); } 50% { box-shadow: 0 4px 0 rgb(0 0 0 / 18%), 0 0 0 10px var(--primary-soft); } }
+@media (max-width: 720px) { .week { margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .trail-circle { animation: none !important; transition: none !important; } }
+.xp-gain { display: inline-block; font-weight: 700; color: var(--mid); background: var(--mid-soft); border-radius: 999px; padding: .2rem .7rem; margin: .4rem 0; }
+.order-btns { display: inline-flex; gap: .2rem; }
+
+/* aula em slides */
+.dot-slide { font-size: .8rem; background: var(--surface-2); }
+.slide { min-height: 22rem; display: flex; flex-direction: column; gap: .9rem; animation: slide-in .25s ease; }
+.slide-top { display: flex; justify-content: space-between; gap: 1rem; }
+.slide-title { font-size: 1.55rem; margin: 0; padding-bottom: .6rem; border-bottom: 3px solid var(--primary); align-self: flex-start; }
+.slide-bullets { margin: 0; padding: 0; list-style: none; display: grid; gap: .55rem; }
+.slide-bullets li { position: relative; padding: .55rem .8rem .55rem 2.2rem; background: var(--surface-2); border-radius: 8px; font-size: 1.05rem; animation: slide-in .3s ease both; }
+.slide-bullets li::before { content: ""; position: absolute; left: .9rem; top: 1.05rem; width: .5rem; height: .5rem; border-radius: 50%; background: var(--primary); }
+.slide-text { margin: 0; font-size: 1rem; line-height: 1.6; }
+.slide-highlight { padding: .75rem 1rem; border-radius: 8px; background: var(--mid-soft); color: var(--text); border-left: 4px solid var(--mid); }
+.slide-nav { margin-top: auto; padding-top: .5rem; }
+@keyframes slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .slide, .slide-bullets li { animation: none !important; } }

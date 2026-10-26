@@ -40,6 +40,7 @@ export interface Module {
   pass_score: number;
   max_attempts: number;
   shuffle_options: boolean;
+  trail_position: number | null;
   created_at: string;
 }
 
@@ -116,4 +117,39 @@ export interface AccessLog {
   platform: "desktop" | "web";
   user_agent: string | null;
   created_at: string;
+}
+
+/** Um módulo na trilha do aluno (edu_my_progress). */
+export interface TrailModule {
+  id: string;
+  title: string;
+  description: string | null;
+  step: number;
+  pass_score: number;
+  question_count: number;
+  answered: number;
+  score_pct: number;
+  passed: boolean;
+  unlocked: boolean;
+}
+
+export interface MyProgress {
+  xp_total: number;
+  xp_today: number;
+  streak_days: number;
+  best_streak: number;
+  week: Array<{ day: string; active: boolean }>;
+  modules: TrailModule[];
+}
+
+/** Slide de aula do módulo; divide a numeração de `position` com as questões. */
+export interface LessonSlide {
+  id: string;
+  module_id: string;
+  position: number;
+  title: string;
+  bullets: string[];
+  explanation: string | null;
+  highlight: string | null;
+  source_page: number | null;
 }
